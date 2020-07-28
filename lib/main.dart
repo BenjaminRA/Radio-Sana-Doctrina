@@ -21,7 +21,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String schedule;
+  List<Schedule> schedule;
   List<String> days = [
     'lunes',
     'martes',
@@ -39,9 +39,55 @@ class _MyAppState extends State<MyApp> {
   }
 
   void getSchedule() async {
-    http.Response res = await http.get(
-        'http://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday - 1)]}.json');
-    setState(() => schedule = utf8.decode(res.bodyBytes));
+    print('fetching schedule');
+    try {
+      http.Response res = await http.get(
+          'http://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday - 1) % 7]}.json');
+
+      Map<String, dynamic> today = jsonDecode(utf8.decode(res.bodyBytes));
+
+      res = await http.get(
+          'http://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday) % 7]}.json');
+
+      Map<String, dynamic> tomorrow = jsonDecode(utf8.decode(res.bodyBytes));
+
+      schedule = [];
+      for (dynamic aux in today['schedule']) {
+        schedule.add(
+          Schedule(
+            lecture: aux['lecture'],
+            preacher: aux['preacher'],
+            date: DateTime(
+              DateTime.now().year,
+              DateTime.now().month,
+              DateTime.now().day,
+              aux['hour'],
+              aux['minute'],
+            ),
+          ),
+        );
+      }
+
+      for (dynamic aux in tomorrow['schedule']) {
+        schedule.add(
+          Schedule(
+            lecture: aux['lecture'],
+            preacher: aux['preacher'],
+            date: DateTime(
+              DateTime.now().year,
+              DateTime.now().month,
+              DateTime.now().day + 1,
+              aux['hour'],
+              aux['minute'],
+            ),
+          ),
+        );
+      }
+
+      setState(() => schedule = schedule);
+    } catch (e) {
+      setState(() => schedule = []);
+    }
   }
 
   @override
@@ -70,7 +116,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 class RadioPage extends StatefulWidget {
-  final String schedule;
+  final List<Schedule> schedule;
   final Function getSchedule;
   RadioPage({Key key, this.schedule, this.getSchedule}) : super(key: key);
 
@@ -89,6 +135,7 @@ class _RadioPageState extends State<RadioPage> {
   Color green = Color.fromRGBO(0, 162, 90, 1.0);
   Color grey = Color.fromRGBO(100, 104, 109, 1.0);
   Color darkGrey = Color.fromRGBO(79, 83, 86, 1.0);
+  StreamSubscription metadataStream;
 
   @override
   void initState() {
@@ -102,20 +149,15 @@ class _RadioPageState extends State<RadioPage> {
     player.setUrl('http://162.210.196.142:8124/stream').catchError((error) {
       print(error);
     }).then((value) => setState(() => loading = false));
+    // metadataStream = player.icyMetadataStream.listen(streamCallback);
 
     // Timer Periodic
     interval = Timer.periodic(Duration(minutes: 1), (Timer timer) async {
-      if (schedule.length == 1 &&
-          DateTime.now().isAfter(DateTime(schedule[0].date.year,
-                  schedule[0].date.month, schedule[0].date.day)
-              .add(Duration(days: 1)))) {
-        print('getting new schedule');
-        widget.getSchedule();
-      }
       List<Schedule> newSchedule = _reorderList(schedule);
       if (newSchedule.length != schedule.length) {
         setState(() => transition = true);
         await Future.delayed(Duration(seconds: 1));
+        widget.getSchedule();
       }
       setState(() {
         schedule = newSchedule;
@@ -137,28 +179,16 @@ class _RadioPageState extends State<RadioPage> {
   void dispose() {
     interval.cancel();
     player.dispose();
+    metadataStream.cancel();
     super.dispose();
   }
 
-  List<Schedule> _getSchedule() {
-    List<Schedule> aux = [];
-    for (dynamic schedule in jsonDecode(widget.schedule)['schedule']) {
-      aux.add(
-        Schedule(
-          lecture: schedule['lecture'],
-          preacher: schedule['preacher'],
-          date: DateTime(
-            DateTime.now().year,
-            DateTime.now().month,
-            DateTime.now().day,
-            schedule['hour'],
-            schedule['minute'],
-          ),
-        ),
-      );
-    }
+  void streamCallback(IcyMetadata metadata) {
+    print(metadata.info.title);
+  }
 
-    return _reorderList(aux);
+  List<Schedule> _getSchedule() {
+    return _reorderList(widget.schedule);
   }
 
   List<Schedule> _reorderList(List<Schedule> list) {
@@ -182,22 +212,30 @@ class _RadioPageState extends State<RadioPage> {
     return aux;
   }
 
-  void _play() {
+  void _play() async {
     setState(() {
-      playing = true;
+      loading = true;
     });
+    metadataStream.cancel();
+    await player.dispose();
     player = AudioPlayer();
     player.setUrl('http://162.210.196.142:8124/stream').catchError((error) {
       print(error);
     }).then((value) {
+      // metadataStream = player.icyMetadataStream.listen(streamCallback);
       player.play();
+      setState(() {
+        loading = false;
+        playing = true;
+      });
     });
   }
 
   void _stop() {
-    player.pause();
+    player.stop();
     setState(() {
       playing = false;
+      loading = false;
     });
   }
 
@@ -318,36 +356,49 @@ class _RadioPageState extends State<RadioPage> {
                     flex: 2,
                     child: Stack(
                       alignment: Alignment.center,
-                      children: <Widget>[
-                        AnimatedContainer(
-                          duration:
-                              Duration(milliseconds: transition ? 500 : 0),
-                          curve: Curves.easeInOut,
-                          transform: Matrix4.translationValues(
-                              0.0, transition ? -50.0 : 0.0, 0.0),
-                          child: AnimatedOpacity(
-                            opacity: transition ? 0.0 : 1.0,
-                            duration:
-                                Duration(milliseconds: transition ? 500 : 0),
-                            child: lectureBuilder(schedule[0]),
-                          ),
-                        ),
-                        schedule.length == 1
-                            ? Container()
-                            : AnimatedContainer(
+                      children: schedule.length == 0
+                          ? [
+                              Text(
+                                'Programa no disponible',
+                                textAlign: TextAlign.center,
+                                softWrap: true,
+                                style: TextStyle(
+                                  color: green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24,
+                                ),
+                              )
+                            ]
+                          : <Widget>[
+                              AnimatedContainer(
                                 duration: Duration(
                                     milliseconds: transition ? 500 : 0),
                                 curve: Curves.easeInOut,
                                 transform: Matrix4.translationValues(
-                                    0.0, transition ? 0.0 : 50.0, 0.0),
+                                    0.0, transition ? -50.0 : 0.0, 0.0),
                                 child: AnimatedOpacity(
-                                  opacity: transition ? 1.0 : 0.0,
+                                  opacity: transition ? 0.0 : 1.0,
                                   duration: Duration(
                                       milliseconds: transition ? 500 : 0),
-                                  child: lectureBuilder(schedule[1]),
+                                  child: lectureBuilder(schedule[0]),
                                 ),
                               ),
-                      ],
+                              schedule.length == 1
+                                  ? Container()
+                                  : AnimatedContainer(
+                                      duration: Duration(
+                                          milliseconds: transition ? 500 : 0),
+                                      curve: Curves.easeInOut,
+                                      transform: Matrix4.translationValues(
+                                          0.0, transition ? 0.0 : 50.0, 0.0),
+                                      child: AnimatedOpacity(
+                                        opacity: transition ? 1.0 : 0.0,
+                                        duration: Duration(
+                                            milliseconds: transition ? 500 : 0),
+                                        child: lectureBuilder(schedule[1]),
+                                      ),
+                                    ),
+                            ],
                     ),
                   ),
                 ],
@@ -367,6 +418,7 @@ class _RadioPageState extends State<RadioPage> {
               ),
             ),
             Container(
+              margin: EdgeInsets.only(bottom: 40.0),
               child: ClipRect(
                 child: Align(
                   child: AnimatedContainer(
@@ -397,11 +449,41 @@ class _RadioPageState extends State<RadioPage> {
                                   ),
                                   Flexible(
                                     fit: FlexFit.tight,
-                                    child: Text(
-                                      e.lecture,
-                                      textAlign: TextAlign.left,
-                                      style: TextStyle(color: Colors.white),
-                                    ),
+                                    child: e.preacher == null
+                                        ? Text(
+                                            e.lecture,
+                                            softWrap: true,
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              // fontWeight: FontWeight.bold,
+                                            ),
+                                          )
+                                        : RichText(
+                                            text: TextSpan(
+                                              children: [
+                                                TextSpan(
+                                                  text: e.lecture,
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    // fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                TextSpan(
+                                                  text: '\n${e.preacher}',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w300,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                    // Text(
+                                    //   e.lecture,
+                                    //   textAlign: TextAlign.left,
+                                    //   style: TextStyle(color: Colors.white),
+                                    // ),
                                     flex: 2,
                                   )
                                 ],
@@ -413,7 +495,7 @@ class _RadioPageState extends State<RadioPage> {
                   ),
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
