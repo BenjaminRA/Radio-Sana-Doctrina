@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flare_flutter/flare_actor.dart';
@@ -66,7 +67,7 @@ class _MyAppState extends State<MyApp> {
               DateTime.now().day,
               aux['hour'],
               aux['minute'],
-            ),
+            ).add(Duration(hours: 4)),
           ),
         );
       }
@@ -82,7 +83,7 @@ class _MyAppState extends State<MyApp> {
               DateTime.now().day + 1,
               aux['hour'],
               aux['minute'],
-            ),
+            ).add(Duration(hours: 4)),
           ),
         );
       }
@@ -153,13 +154,14 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
     // Schedule
     schedule = _getSchedule();
 
     // Timer Periodic
     interval = Timer.periodic(Duration(minutes: 1), (Timer timer) async {
       List<Schedule> newSchedule = _reorderList(schedule);
-      if (newSchedule.length != schedule.length) {
+      if (newSchedule.length != schedule.length || true) {
         AudioService.customAction('setMediaItem', _mediaItem());
         setState(() => transition = true);
         await Future.delayed(Duration(seconds: 1));
@@ -215,10 +217,10 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Map<String, String> _mediaItem() => {
-        'lecture': schedule.length > 0 ? schedule[0].lecture : null,
-        'preacher': schedule.length > 0 && schedule[0].preacher != null
-            ? schedule[0].preacher
+  Map<String, String> _mediaItem([index = 0]) => {
+        'lecture': schedule.length > 0 ? schedule[index].lecture : null,
+        'preacher': schedule.length > 0 && schedule[index].preacher != null
+            ? schedule[index].preacher
             : null
       };
 
@@ -235,7 +237,9 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
     for (int i = 0; i < list.length; ++i) {
       if (i == list.length - 1) {
         aux.add(list[i]);
-      } else if (list[i + 1].date.isAfter(DateTime.now())) {
+      } else if (list[i + 1]
+          .date
+          .isAfter(DateTime.now().subtract(DateTime.now().timeZoneOffset))) {
         aux.add(list[i]);
       }
     }
@@ -497,7 +501,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
                                     Flexible(
                                       fit: FlexFit.tight,
                                       child: Text(
-                                        '${e.date.hour < 10 ? '0' : ''}${e.date.hour}:00',
+                                        '${e.date.add(DateTime.now().timeZoneOffset).hour < 10 ? '0' : ''}${e.date.add(DateTime.now().timeZoneOffset).hour}:${e.date.minute < 10 ? '0' : ''}${e.date.minute}',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(color: Colors.white),
                                       ),
