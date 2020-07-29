@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flare_flutter/flare_actor.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:radio/models/schedule.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:radio/radioTask.dart';
 import 'dart:io';
 
 void main() async {
@@ -106,11 +108,17 @@ class _MyAppState extends State<MyApp> {
                   primarySwatch: Colors.green,
                   visualDensity: VisualDensity.adaptivePlatformDensity,
                 ),
-                home: RadioPage(schedule: schedule, getSchedule: getSchedule),
+                home: AudioServiceWidget(
+                  child:
+                      RadioPage(schedule: schedule, getSchedule: getSchedule),
+                ),
               )
             : CupertinoApp(
                 title: 'Radio Sana Doctrina',
-                home: RadioPage(schedule: schedule, getSchedule: getSchedule),
+                home: AudioServiceWidget(
+                  child:
+                      RadioPage(schedule: schedule, getSchedule: getSchedule),
+                ),
               );
   }
 }
@@ -124,8 +132,11 @@ class RadioPage extends StatefulWidget {
   _RadioPageState createState() => _RadioPageState();
 }
 
+void _backgroundTaskEntrypoint() {
+  AudioServiceBackground.run(() => RadioTask());
+}
+
 class _RadioPageState extends State<RadioPage> {
-  AudioPlayer player;
   List<Schedule> schedule;
   bool playing = false;
   bool transition = false;
@@ -135,26 +146,19 @@ class _RadioPageState extends State<RadioPage> {
   Color green = Color.fromRGBO(0, 162, 90, 1.0);
   Color grey = Color.fromRGBO(100, 104, 109, 1.0);
   Color darkGrey = Color.fromRGBO(79, 83, 86, 1.0);
-  StreamSubscription metadataStream;
+  StreamSubscription customEventStream;
 
   @override
   void initState() {
     super.initState();
-
     // Schedule
     schedule = _getSchedule();
-
-    // Stream Player
-    player = AudioPlayer();
-    player.setUrl('http://162.210.196.142:8124/stream').catchError((error) {
-      print(error);
-    }).then((value) => setState(() => loading = false));
-    // metadataStream = player.icyMetadataStream.listen(streamCallback);
 
     // Timer Periodic
     interval = Timer.periodic(Duration(minutes: 1), (Timer timer) async {
       List<Schedule> newSchedule = _reorderList(schedule);
       if (newSchedule.length != schedule.length) {
+        AudioService.customAction('setMediaItem', _mediaItem());
         setState(() => transition = true);
         await Future.delayed(Duration(seconds: 1));
         widget.getSchedule();
@@ -164,6 +168,23 @@ class _RadioPageState extends State<RadioPage> {
         stripesFlag = transition ? !stripesFlag : stripesFlag;
         transition = false;
       });
+    });
+
+    customEventStream = AudioService.customEventStream.listen((event) {
+      print(event);
+      if (event['event'] == 'stop') {
+        setState(() {});
+        // exit(0);
+      } else if (event['event'] == 'pause') {
+        setState(() {
+          playing = false;
+        });
+      } else if (event['event'] == 'play') {
+        setState(() {
+          loading = false;
+          playing = true;
+        });
+      }
     });
   }
 
@@ -177,11 +198,17 @@ class _RadioPageState extends State<RadioPage> {
 
   @override
   void dispose() {
+    customEventStream.cancel();
     interval.cancel();
-    player.dispose();
-    metadataStream.cancel();
     super.dispose();
   }
+
+  Map<String, String> _mediaItem() => {
+        'lecture': schedule.length > 0 ? schedule[0].lecture : null,
+        'preacher': schedule.length > 0 && schedule[0].preacher != null
+            ? schedule[0].preacher
+            : null
+      };
 
   void streamCallback(IcyMetadata metadata) {
     print(metadata.info.title);
@@ -213,26 +240,14 @@ class _RadioPageState extends State<RadioPage> {
   }
 
   void _play() async {
+    AudioService.play();
     setState(() {
       loading = true;
-    });
-    metadataStream.cancel();
-    await player.dispose();
-    player = AudioPlayer();
-    player.setUrl('http://162.210.196.142:8124/stream').catchError((error) {
-      print(error);
-    }).then((value) {
-      // metadataStream = player.icyMetadataStream.listen(streamCallback);
-      player.play();
-      setState(() {
-        loading = false;
-        playing = true;
-      });
     });
   }
 
   void _stop() {
-    player.stop();
+    AudioService.pause();
     setState(() {
       playing = false;
       loading = false;
@@ -323,28 +338,54 @@ class _RadioPageState extends State<RadioPage> {
                   Flexible(
                     fit: FlexFit.tight,
                     flex: 1,
-                    child: loading
-                        ? Transform.scale(
-                            scale: 1.7,
-                            child: Container(
-                              alignment: Alignment.center,
-                              child: FlareActor(
-                                "assets/loading.flr",
-                                alignment: Alignment.center,
-                                animation: "Loading",
-                              ),
-                            ),
-                          )
+                    child: AudioService.running
+                        ? loading
+                            ? Transform.scale(
+                                scale: 1.7,
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  child: FlareActor(
+                                    "assets/loading.flr",
+                                    alignment: Alignment.center,
+                                    animation: "Loading",
+                                  ),
+                                ),
+                              )
+                            : FlatButton(
+                                onPressed: playing ? _stop : _play,
+                                child: Transform.scale(
+                                  scale: 1.5,
+                                  child: Container(
+                                    padding: EdgeInsets.all(15.0),
+                                    child: Image.asset(
+                                      playing
+                                          ? 'assets/pause.png'
+                                          : 'assets/play.png',
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              )
                         : FlatButton(
-                            onPressed: playing ? _stop : _play,
+                            onPressed: () {
+                              setState(() {
+                                loading = true;
+                                playing = false;
+                              });
+                              AudioService.start(
+                                backgroundTaskEntrypoint:
+                                    _backgroundTaskEntrypoint,
+                              ).then((value) {
+                                AudioService.customAction(
+                                    'setMediaItem', _mediaItem());
+                              });
+                            },
                             child: Transform.scale(
                               scale: 1.5,
                               child: Container(
                                 padding: EdgeInsets.all(15.0),
                                 child: Image.asset(
-                                  playing
-                                      ? 'assets/pause.png'
-                                      : 'assets/play.png',
+                                  'assets/play.png',
                                   color: Colors.white,
                                 ),
                               ),
