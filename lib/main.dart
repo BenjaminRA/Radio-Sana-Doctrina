@@ -137,7 +137,7 @@ void _backgroundTaskEntrypoint() {
   AudioServiceBackground.run(() => RadioTask());
 }
 
-class _RadioPageState extends State<RadioPage> {
+class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
   List<Schedule> schedule;
   bool playing = false;
   bool transition = false;
@@ -152,6 +152,7 @@ class _RadioPageState extends State<RadioPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Schedule
     schedule = _getSchedule();
 
@@ -173,6 +174,7 @@ class _RadioPageState extends State<RadioPage> {
     AudioService.customAction('init');
 
     customEventStream = AudioService.customEventStream.listen((event) {
+      print(event);
       if (event['event'] == 'stop') {
         setState(() {});
         // exit(0);
@@ -198,7 +200,16 @@ class _RadioPageState extends State<RadioPage> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      AudioService.customAction('init');
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     customEventStream.cancel();
     interval.cancel();
     super.dispose();

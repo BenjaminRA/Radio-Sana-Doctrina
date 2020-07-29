@@ -137,4 +137,10 @@ class RadioTask extends BackgroundAudioTask {
           {'event': playing ? 'play' : 'pause'});
     }
   }
+
+  // Handle a phone call or other interruption
+  onAudioFocusLost(AudioInterruption interruption) => _pause();
+
+  // Handle the end of an audio interruption.
+  onAudioFocusGained(AudioInterruption interruption) => _pause();
 }
