@@ -169,9 +169,9 @@ class _RadioPageState extends State<RadioPage> {
         transition = false;
       });
     });
+    AudioService.customAction('init');
 
     customEventStream = AudioService.customEventStream.listen((event) {
-      print(event);
       if (event['event'] == 'stop') {
         setState(() {});
         // exit(0);

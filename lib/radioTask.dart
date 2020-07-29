@@ -122,8 +122,6 @@ class RadioTask extends BackgroundAudioTask {
 
   @override
   Future<dynamic> onCustomAction(action, args) async {
-    print(action);
-    print(args['lecture']);
     if (action == 'setMediaItem') {
       AudioServiceBackground.setMediaItem(
         MediaItem(
@@ -134,6 +132,9 @@ class RadioTask extends BackgroundAudioTask {
           artUri: 'http://www.radiosanadoctrina.cl/images/r1.png',
         ),
       );
+    } else if (action == 'init') {
+      AudioServiceBackground.sendCustomEvent(
+          {'event': playing ? 'play' : 'pause'});
     }
   }
 }
