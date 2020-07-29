@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flare_flutter/flare_actor.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:radio/models/schedule.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -295,249 +296,254 @@ class _RadioPageState extends State<RadioPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Container(
-        child: ListView(
-          children: [
-            Container(
-              height: 90,
-              child: Center(
-                child: Transform.scale(
-                  scale: 1.8,
-                  child: ClipRect(
-                    child: Container(
-                      child: Align(
-                        alignment: Alignment.center,
-                        heightFactor: 0.7,
-                        widthFactor: 0.7,
-                        child: Image.asset('assets/logo.jpeg'),
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Container(
+          child: ListView(
+            children: [
+              Container(
+                height: 90,
+                child: Center(
+                  child: Transform.scale(
+                    scale: 1.8,
+                    child: ClipRect(
+                      child: Container(
+                        child: Align(
+                          alignment: Alignment.center,
+                          heightFactor: 0.7,
+                          widthFactor: 0.7,
+                          child: Image.asset('assets/logo.jpeg'),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            Container(
-              color: green,
-              padding: EdgeInsets.all(7.0),
-              child: Text(
-                'Ahora transmitiendo',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w300,
-                  fontSize: 20,
+              Container(
+                color: green,
+                padding: EdgeInsets.all(7.0),
+                child: Text(
+                  'Ahora transmitiendo',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w300,
+                    fontSize: 20,
+                  ),
                 ),
               ),
-            ),
-            Container(
-              color: Colors.black,
-              height: 80,
-              margin: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
-              child: Row(
-                children: <Widget>[
-                  Flexible(
-                    fit: FlexFit.tight,
-                    flex: 1,
-                    child: AudioService.running
-                        ? loading
-                            ? Transform.scale(
-                                scale: 1.7,
-                                child: Container(
-                                  alignment: Alignment.center,
-                                  child: FlareActor(
-                                    "assets/loading.flr",
-                                    alignment: Alignment.center,
-                                    animation: "Loading",
-                                  ),
-                                ),
-                              )
-                            : FlatButton(
-                                onPressed: playing ? _stop : _play,
-                                child: Transform.scale(
-                                  scale: 1.5,
+              Container(
+                color: Colors.black,
+                height: 80,
+                margin: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                child: Row(
+                  children: <Widget>[
+                    Flexible(
+                      fit: FlexFit.tight,
+                      flex: 1,
+                      child: AudioService.running
+                          ? loading
+                              ? Transform.scale(
+                                  scale: 1.7,
                                   child: Container(
-                                    padding: EdgeInsets.all(15.0),
-                                    child: Image.asset(
-                                      playing
-                                          ? 'assets/pause.png'
-                                          : 'assets/play.png',
-                                      color: Colors.white,
+                                    alignment: Alignment.center,
+                                    child: FlareActor(
+                                      "assets/loading.flr",
+                                      alignment: Alignment.center,
+                                      animation: "Loading",
                                     ),
                                   ),
-                                ),
-                              )
-                        : FlatButton(
-                            onPressed: () {
-                              setState(() {
-                                loading = true;
-                                playing = false;
-                              });
-                              AudioService.start(
-                                backgroundTaskEntrypoint:
-                                    _backgroundTaskEntrypoint,
-                              ).then((value) {
-                                AudioService.customAction(
-                                    'setMediaItem', _mediaItem());
-                              });
-                            },
-                            child: Transform.scale(
-                              scale: 1.5,
-                              child: Container(
-                                padding: EdgeInsets.all(15.0),
-                                child: Image.asset(
-                                  'assets/play.png',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-                  Flexible(
-                    fit: FlexFit.tight,
-                    flex: 2,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: schedule.length == 0
-                          ? [
-                              Text(
-                                'Programa no disponible',
-                                textAlign: TextAlign.center,
-                                softWrap: true,
-                                style: TextStyle(
-                                  color: green,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 24,
-                                ),
-                              )
-                            ]
-                          : <Widget>[
-                              AnimatedContainer(
-                                duration: Duration(
-                                    milliseconds: transition ? 500 : 0),
-                                curve: Curves.easeInOut,
-                                transform: Matrix4.translationValues(
-                                    0.0, transition ? -50.0 : 0.0, 0.0),
-                                child: AnimatedOpacity(
-                                  opacity: transition ? 0.0 : 1.0,
-                                  duration: Duration(
-                                      milliseconds: transition ? 500 : 0),
-                                  child: lectureBuilder(schedule[0]),
-                                ),
-                              ),
-                              schedule.length == 1
-                                  ? Container()
-                                  : AnimatedContainer(
-                                      duration: Duration(
-                                          milliseconds: transition ? 500 : 0),
-                                      curve: Curves.easeInOut,
-                                      transform: Matrix4.translationValues(
-                                          0.0, transition ? 0.0 : 50.0, 0.0),
-                                      child: AnimatedOpacity(
-                                        opacity: transition ? 1.0 : 0.0,
-                                        duration: Duration(
-                                            milliseconds: transition ? 500 : 0),
-                                        child: lectureBuilder(schedule[1]),
+                                )
+                              : FlatButton(
+                                  onPressed: playing ? _stop : _play,
+                                  child: Transform.scale(
+                                    scale: 1.5,
+                                    child: Container(
+                                      padding: EdgeInsets.all(15.0),
+                                      child: Image.asset(
+                                        playing
+                                            ? 'assets/pause.png'
+                                            : 'assets/play.png',
+                                        color: Colors.white,
                                       ),
                                     ),
-                            ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              color: green,
-              padding: EdgeInsets.all(7.0),
-              child: Text(
-                'A continuación',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w300,
-                  fontSize: 20,
-                ),
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.only(bottom: 40.0),
-              child: ClipRect(
-                child: Align(
-                  child: AnimatedContainer(
-                    duration: Duration(milliseconds: transition ? 500 : 0),
-                    curve: Curves.easeInOut,
-                    transform: Matrix4.translationValues(
-                        0.0, transition ? -36.0 : 0.0, 0.0),
-                    child: Column(
-                      children: _listToShow(schedule)
-                          .map(
-                            (e) => Container(
-                              margin: EdgeInsets.symmetric(horizontal: 40.0),
-                              padding: EdgeInsets.symmetric(vertical: 10.0),
-                              color: schedule.indexOf(e) % 2 ==
-                                      (stripesFlag ? 0 : 1)
-                                  ? grey
-                                  : darkGrey,
-                              child: Row(
-                                children: <Widget>[
-                                  Flexible(
-                                    fit: FlexFit.tight,
-                                    child: Text(
-                                      '${e.date.hour < 10 ? '0' : ''}${e.date.hour}:00',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    flex: 1,
                                   ),
-                                  Flexible(
-                                    fit: FlexFit.tight,
-                                    child: e.preacher == null
-                                        ? Text(
-                                            e.lecture,
-                                            softWrap: true,
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              // fontWeight: FontWeight.bold,
-                                            ),
-                                          )
-                                        : RichText(
-                                            text: TextSpan(
-                                              children: [
-                                                TextSpan(
-                                                  text: e.lecture,
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    // fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                TextSpan(
-                                                  text: '\n${e.preacher}',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w300,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                    // Text(
-                                    //   e.lecture,
-                                    //   textAlign: TextAlign.left,
-                                    //   style: TextStyle(color: Colors.white),
-                                    // ),
-                                    flex: 2,
-                                  )
-                                ],
+                                )
+                          : FlatButton(
+                              onPressed: () {
+                                setState(() {
+                                  loading = true;
+                                  playing = false;
+                                });
+                                AudioService.start(
+                                  backgroundTaskEntrypoint:
+                                      _backgroundTaskEntrypoint,
+                                ).then((value) {
+                                  AudioService.customAction(
+                                      'setMediaItem', _mediaItem());
+                                });
+                              },
+                              child: Transform.scale(
+                                scale: 1.5,
+                                child: Container(
+                                  padding: EdgeInsets.all(15.0),
+                                  child: Image.asset(
+                                    'assets/play.png',
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
-                          )
-                          .toList(),
+                    ),
+                    Flexible(
+                      fit: FlexFit.tight,
+                      flex: 2,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: schedule.length == 0
+                            ? [
+                                Text(
+                                  'Programa no disponible',
+                                  textAlign: TextAlign.center,
+                                  softWrap: true,
+                                  style: TextStyle(
+                                    color: green,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24,
+                                  ),
+                                )
+                              ]
+                            : <Widget>[
+                                AnimatedContainer(
+                                  duration: Duration(
+                                      milliseconds: transition ? 500 : 0),
+                                  curve: Curves.easeInOut,
+                                  transform: Matrix4.translationValues(
+                                      0.0, transition ? -50.0 : 0.0, 0.0),
+                                  child: AnimatedOpacity(
+                                    opacity: transition ? 0.0 : 1.0,
+                                    duration: Duration(
+                                        milliseconds: transition ? 500 : 0),
+                                    child: lectureBuilder(schedule[0]),
+                                  ),
+                                ),
+                                schedule.length == 1
+                                    ? Container()
+                                    : AnimatedContainer(
+                                        duration: Duration(
+                                            milliseconds: transition ? 500 : 0),
+                                        curve: Curves.easeInOut,
+                                        transform: Matrix4.translationValues(
+                                            0.0, transition ? 0.0 : 50.0, 0.0),
+                                        child: AnimatedOpacity(
+                                          opacity: transition ? 1.0 : 0.0,
+                                          duration: Duration(
+                                              milliseconds:
+                                                  transition ? 500 : 0),
+                                          child: lectureBuilder(schedule[1]),
+                                        ),
+                                      ),
+                              ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                color: green,
+                padding: EdgeInsets.all(7.0),
+                child: Text(
+                  'A continuación',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w300,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+              Container(
+                margin: EdgeInsets.only(bottom: 40.0),
+                child: ClipRect(
+                  child: Align(
+                    child: AnimatedContainer(
+                      duration: Duration(milliseconds: transition ? 500 : 0),
+                      curve: Curves.easeInOut,
+                      transform: Matrix4.translationValues(
+                          0.0, transition ? -36.0 : 0.0, 0.0),
+                      child: Column(
+                        children: _listToShow(schedule)
+                            .map(
+                              (e) => Container(
+                                margin: EdgeInsets.symmetric(horizontal: 40.0),
+                                padding: EdgeInsets.symmetric(vertical: 10.0),
+                                color: schedule.indexOf(e) % 2 ==
+                                        (stripesFlag ? 0 : 1)
+                                    ? grey
+                                    : darkGrey,
+                                child: Row(
+                                  children: <Widget>[
+                                    Flexible(
+                                      fit: FlexFit.tight,
+                                      child: Text(
+                                        '${e.date.hour < 10 ? '0' : ''}${e.date.hour}:00',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      flex: 1,
+                                    ),
+                                    Flexible(
+                                      fit: FlexFit.tight,
+                                      child: e.preacher == null
+                                          ? Text(
+                                              e.lecture,
+                                              softWrap: true,
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                // fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                          : RichText(
+                                              text: TextSpan(
+                                                children: [
+                                                  TextSpan(
+                                                    text: e.lecture,
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      // fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  TextSpan(
+                                                    text: '\n${e.preacher}',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w300,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                      // Text(
+                                      //   e.lecture,
+                                      //   textAlign: TextAlign.left,
+                                      //   style: TextStyle(color: Colors.white),
+                                      // ),
+                                      flex: 2,
+                                    )
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
