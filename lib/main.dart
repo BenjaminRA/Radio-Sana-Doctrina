@@ -161,7 +161,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
     // Timer Periodic
     interval = Timer.periodic(Duration(minutes: 1), (Timer timer) async {
       List<Schedule> newSchedule = _reorderList(schedule);
-      if (newSchedule.length != schedule.length || true) {
+      if (newSchedule.length != schedule.length) {
         AudioService.customAction('setMediaItem', _mediaItem());
         setState(() => transition = true);
         await Future.delayed(Duration(seconds: 1));
