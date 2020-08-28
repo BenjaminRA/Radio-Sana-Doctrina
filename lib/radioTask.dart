@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:http/http.dart' as http;
 
 void _backgroundTaskEntrypoint() {
   AudioServiceBackground.run(() => RadioTask());
@@ -17,6 +19,7 @@ class RadioTask extends BackgroundAudioTask {
     artUri: 'http://www.radiosanadoctrina.cl/images/r1.png',
   );
   bool playing = false;
+  String url;
   // StreamSubscription _metadataStream;
 
   final playControl = MediaControl(
@@ -47,7 +50,7 @@ class RadioTask extends BackgroundAudioTask {
 
     _player = AudioPlayer();
     try {
-      await _player.setUrl('http://162.210.196.142:8124/stream');
+      await _player.setUrl(await getUrl());
 
       // Broadcast that we're playing, and what controls are available.
       _player.play();
@@ -93,7 +96,7 @@ class RadioTask extends BackgroundAudioTask {
     _player.dispose();
     _player = AudioPlayer();
     try {
-      await _player.setUrl('http://162.210.196.142:8124/stream');
+      await _player.setUrl(await getUrl());
       _player.play();
       AudioServiceBackground.setState(
         controls: [pauseControl, stopControl],
@@ -138,9 +141,21 @@ class RadioTask extends BackgroundAudioTask {
     }
   }
 
+  Future<String> getUrl() async {
+    if (url == null) {
+      http.Response res = await http.get(
+          'http://saltograndecl.startlogic.com/Publico/iglesialota/radio/APP/json/conf_app.json');
+      Map<String, dynamic> json = jsonDecode(utf8.decode(res.bodyBytes));
+      url = json['URL_Stream'];
+      print(url);
+    }
+
+    return url;
+  }
+
   // Handle a phone call or other interruption
   onAudioFocusLost(AudioInterruption interruption) => _pause();
 
   // Handle the end of an audio interruption.
-  onAudioFocusGained(AudioInterruption interruption) => _pause();
+  onAudioFocusGained(AudioInterruption interruption) => _play();
 }
