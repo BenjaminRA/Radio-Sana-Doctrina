@@ -16,6 +16,7 @@ import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AudioPlayer.setIosCategory(IosCategory.playback);
   runApp(MyApp());
 }
 
