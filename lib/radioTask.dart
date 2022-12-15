@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:http/http.dart' as http;
-
-void _backgroundTaskEntrypoint() {
-  AudioServiceBackground.run(() => RadioTask());
-}
 
 class RadioTask extends BackgroundAudioTask {
   AudioPlayer _player;
@@ -16,7 +13,7 @@ class RadioTask extends BackgroundAudioTask {
     album: 'Radio Sana Doctrina',
     artist: 'Asamblea de Lota',
     title: 'Radio Sana Doctrina',
-    artUri: 'http://www.radiosanadoctrina.cl/images/r1.png',
+    artUri: Uri.parse('http://www.radiosanadoctrina.cl/images/r1.png'),
   );
   bool playing = false;
   String url;
@@ -40,31 +37,40 @@ class RadioTask extends BackgroundAudioTask {
 
   @override
   Future<void> onStart(Map<String, dynamic> params) async {
-    // Broadcast that we're connecting, and what controls are available.
-    AudioServiceBackground.setMediaItem(_mediaItem);
-    AudioServiceBackground.setState(
-        controls: [stopControl],
-        playing: false,
-        processingState: AudioProcessingState.connecting,
-        systemActions: [MediaAction.stop]);
+    final session = await AudioSession.instance;
 
-    _player = AudioPlayer();
-    try {
-      await _player.setUrl(await getUrl());
+    session.interruptionEventStream.listen((event) {
+      if (event.begin) {
+        _pause();
+      } else {
+        _play();
+      }
+    });
 
-      // Broadcast that we're playing, and what controls are available.
-      _player.play();
+    if (await session.setActive(true)) {
+      // Broadcast that we're connecting, and what controls are available.
+      AudioServiceBackground.setMediaItem(_mediaItem);
       AudioServiceBackground.setState(
-        controls: [pauseControl, stopControl],
-        playing: true,
-        processingState: AudioProcessingState.ready,
-        systemActions: [MediaAction.pause, MediaAction.stop],
-      );
-      playing = true;
-      AudioServiceBackground.sendCustomEvent({'event': 'play'});
-      // metadataStream = player.icyMetadataStream.listen(streamCallback);
-    } catch (e) {
-      onStop();
+          controls: [stopControl], playing: false, processingState: AudioProcessingState.loading, systemActions: [MediaAction.stop]);
+
+      _player = AudioPlayer();
+      try {
+        await _player.setUrl(await getUrl());
+
+        // Broadcast that we're playing, and what controls are available.
+        _player.play();
+        AudioServiceBackground.setState(
+          controls: [pauseControl, stopControl],
+          playing: true,
+          processingState: AudioProcessingState.ready,
+          systemActions: [MediaAction.pause, MediaAction.stop],
+        );
+        playing = true;
+        AudioServiceBackground.sendCustomEvent({'event': 'play'});
+        // metadataStream = player.icyMetadataStream.listen(streamCallback);
+      } catch (e) {
+        onStop();
+      }
     }
   }
 
@@ -78,21 +84,21 @@ class RadioTask extends BackgroundAudioTask {
   }
 
   @override
-  void onPlay() => _play();
+  Future<void> onPlay() => _play();
 
   @override
-  void onPause() => _pause();
+  Future<void> onPause() => _pause();
 
   @override
-  void onClick(MediaButton button) {
+  Future<void> onClick(MediaButton button) async {
     if (playing) {
-      _pause();
+      return _pause();
     } else {
-      _play();
+      return _play();
     }
   }
 
-  void _play() async {
+  Future<void> _play() async {
     _player.dispose();
     _player = AudioPlayer();
     try {
@@ -111,7 +117,7 @@ class RadioTask extends BackgroundAudioTask {
     }
   }
 
-  void _pause() async {
+  Future<void> _pause() async {
     _player.stop();
     AudioServiceBackground.setState(
       controls: [playControl, stopControl],
@@ -132,30 +138,28 @@ class RadioTask extends BackgroundAudioTask {
           album: 'Radio Sana Doctrina',
           artist: args['preacher'] ?? 'Asamblea de Lota',
           title: args['lecture'] ?? 'Radio Sana Doctrina',
-          artUri: 'http://www.radiosanadoctrina.cl/images/r1.png',
+          artUri: Uri.parse('http://www.radiosanadoctrina.cl/images/r1.png'),
         ),
       );
     } else if (action == 'init') {
-      AudioServiceBackground.sendCustomEvent(
-          {'event': playing ? 'play' : 'pause'});
+      AudioServiceBackground.sendCustomEvent({'event': playing ? 'play' : 'pause'});
     }
   }
 
   Future<String> getUrl() async {
     if (url == null) {
-      http.Response res = await http.get(
-          'http://saltograndecl.startlogic.com/Publico/iglesialota/radio/APP/json/conf_app.json');
+      http.Response res = await http.get(Uri.parse('https://app.radiosanadoctrina.cl/json/conf_app.json'));
       Map<String, dynamic> json = jsonDecode(utf8.decode(res.bodyBytes));
-      url = json['URL_Stream'];
+      url = (json['URL_Stream'] as String).replaceAll('https', 'http');
       print(url);
     }
 
     return url;
   }
 
-  // Handle a phone call or other interruption
-  onAudioFocusLost(AudioInterruption interruption) => _pause();
+  // // Handle a phone call or other interruption
+  // onAudioFocusLost(AudioInterruption interruption) => _pause();
 
-  // Handle the end of an audio interruption.
-  onAudioFocusGained(AudioInterruption interruption) => _play();
+  // // Handle the end of an audio interruption.
+  // onAudioFocusGained(AudioInterruption interruption) => _play();
 }

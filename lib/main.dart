@@ -16,7 +16,7 @@ import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  AudioPlayer.setIosCategory(IosCategory.playback);
+  // AudioPlayer.setIosCategory(IosCategory.playback);
   runApp(MyApp());
 }
 
@@ -27,15 +27,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   List<Schedule> schedule;
-  List<String> days = [
-    'lunes',
-    'martes',
-    'miercoles',
-    'jueves',
-    'viernes',
-    'sabado',
-    'domingo'
-  ];
+  List<String> days = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
 
   @override
   void initState() {
@@ -46,13 +38,11 @@ class _MyAppState extends State<MyApp> {
   void getSchedule() async {
     print('fetching schedule');
     try {
-      http.Response res = await http.get(
-          'http://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday - 1) % 7]}.json');
+      http.Response res = await http.get(Uri.parse('https://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday - 1) % 7]}.json'));
 
       Map<String, dynamic> today = jsonDecode(utf8.decode(res.bodyBytes));
 
-      res = await http.get(
-          'http://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday) % 7]}.json');
+      res = await http.get(Uri.parse('https://app.radiosanadoctrina.cl/json/${days[(DateTime.now().weekday) % 7]}.json'));
 
       Map<String, dynamic> tomorrow = jsonDecode(utf8.decode(res.bodyBytes));
 
@@ -91,6 +81,7 @@ class _MyAppState extends State<MyApp> {
 
       setState(() => schedule = schedule);
     } catch (e) {
+      print(e);
       setState(() => schedule = []);
     }
   }
@@ -112,15 +103,13 @@ class _MyAppState extends State<MyApp> {
                   visualDensity: VisualDensity.adaptivePlatformDensity,
                 ),
                 home: AudioServiceWidget(
-                  child:
-                      RadioPage(schedule: schedule, getSchedule: getSchedule),
+                  child: RadioPage(schedule: schedule, getSchedule: getSchedule),
                 ),
               )
             : CupertinoApp(
                 title: 'Radio Sana Doctrina',
                 home: AudioServiceWidget(
-                  child:
-                      RadioPage(schedule: schedule, getSchedule: getSchedule),
+                  child: RadioPage(schedule: schedule, getSchedule: getSchedule),
                 ),
               );
   }
@@ -174,7 +163,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
         transition = false;
       });
     });
-    AudioService.customAction('init');
+    AudioService.customAction('init', null);
 
     customEventStream = AudioService.customEventStream.listen((event) {
       print(event);
@@ -206,7 +195,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      AudioService.customAction('init');
+      AudioService.customAction('init', null);
     }
   }
 
@@ -220,9 +209,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
 
   Map<String, String> _mediaItem([index = 0]) => {
         'lecture': schedule.length > 0 ? schedule[index].lecture : null,
-        'preacher': schedule.length > 0 && schedule[index].preacher != null
-            ? schedule[index].preacher
-            : null
+        'preacher': schedule.length > 0 && schedule[index].preacher != null ? schedule[index].preacher : null
       };
 
   void streamCallback(IcyMetadata metadata) {
@@ -238,9 +225,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
     for (int i = 0; i < list.length; ++i) {
       if (i == list.length - 1) {
         aux.add(list[i]);
-      } else if (list[i + 1]
-          .date
-          .isAfter(DateTime.now().subtract(DateTime.now().timeZoneOffset))) {
+      } else if (list[i + 1].date.isAfter(DateTime.now().subtract(DateTime.now().timeZoneOffset))) {
         aux.add(list[i]);
       }
     }
@@ -357,7 +342,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
                     Flexible(
                       fit: FlexFit.tight,
                       flex: 1,
-                      child: AudioService.running
+                      child: AudioService.playbackState.processingState == AudioProcessingState.ready
                           ? loading
                               ? Transform.scale(
                                   scale: 1.7,
@@ -370,33 +355,29 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
                                     ),
                                   ),
                                 )
-                              : FlatButton(
+                              : TextButton(
                                   onPressed: playing ? _stop : _play,
                                   child: Transform.scale(
                                     scale: 1.5,
                                     child: Container(
                                       padding: EdgeInsets.all(15.0),
                                       child: Image.asset(
-                                        playing
-                                            ? 'assets/pause.png'
-                                            : 'assets/play.png',
+                                        playing ? 'assets/pause.png' : 'assets/play.png',
                                         color: Colors.white,
                                       ),
                                     ),
                                   ),
                                 )
-                          : FlatButton(
+                          : TextButton(
                               onPressed: () {
                                 setState(() {
                                   loading = true;
                                   playing = false;
                                 });
                                 AudioService.start(
-                                  backgroundTaskEntrypoint:
-                                      _backgroundTaskEntrypoint,
+                                  backgroundTaskEntrypoint: _backgroundTaskEntrypoint,
                                 ).then((value) {
-                                  AudioService.customAction(
-                                      'setMediaItem', _mediaItem());
+                                  AudioService.customAction('setMediaItem', _mediaItem());
                                 });
                               },
                               child: Transform.scale(
@@ -431,31 +412,24 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
                               ]
                             : <Widget>[
                                 AnimatedContainer(
-                                  duration: Duration(
-                                      milliseconds: transition ? 500 : 0),
+                                  duration: Duration(milliseconds: transition ? 500 : 0),
                                   curve: Curves.easeInOut,
-                                  transform: Matrix4.translationValues(
-                                      0.0, transition ? -50.0 : 0.0, 0.0),
+                                  transform: Matrix4.translationValues(0.0, transition ? -50.0 : 0.0, 0.0),
                                   child: AnimatedOpacity(
                                     opacity: transition ? 0.0 : 1.0,
-                                    duration: Duration(
-                                        milliseconds: transition ? 500 : 0),
+                                    duration: Duration(milliseconds: transition ? 500 : 0),
                                     child: lectureBuilder(schedule[0]),
                                   ),
                                 ),
                                 schedule.length == 1
                                     ? Container()
                                     : AnimatedContainer(
-                                        duration: Duration(
-                                            milliseconds: transition ? 500 : 0),
+                                        duration: Duration(milliseconds: transition ? 500 : 0),
                                         curve: Curves.easeInOut,
-                                        transform: Matrix4.translationValues(
-                                            0.0, transition ? 0.0 : 50.0, 0.0),
+                                        transform: Matrix4.translationValues(0.0, transition ? 0.0 : 50.0, 0.0),
                                         child: AnimatedOpacity(
                                           opacity: transition ? 1.0 : 0.0,
-                                          duration: Duration(
-                                              milliseconds:
-                                                  transition ? 500 : 0),
+                                          duration: Duration(milliseconds: transition ? 500 : 0),
                                           child: lectureBuilder(schedule[1]),
                                         ),
                                       ),
@@ -485,18 +459,14 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: transition ? 500 : 0),
                       curve: Curves.easeInOut,
-                      transform: Matrix4.translationValues(
-                          0.0, transition ? -36.0 : 0.0, 0.0),
+                      transform: Matrix4.translationValues(0.0, transition ? -36.0 : 0.0, 0.0),
                       child: Column(
                         children: _listToShow(schedule)
                             .map(
                               (e) => Container(
                                 margin: EdgeInsets.symmetric(horizontal: 40.0),
                                 padding: EdgeInsets.symmetric(vertical: 10.0),
-                                color: schedule.indexOf(e) % 2 ==
-                                        (stripesFlag ? 0 : 1)
-                                    ? grey
-                                    : darkGrey,
+                                color: schedule.indexOf(e) % 2 == (stripesFlag ? 0 : 1) ? grey : darkGrey,
                                 child: Row(
                                   children: <Widget>[
                                     Flexible(
@@ -533,8 +503,7 @@ class _RadioPageState extends State<RadioPage> with WidgetsBindingObserver {
                                                     text: '\n${e.preacher}',
                                                     style: TextStyle(
                                                       color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w300,
+                                                      fontWeight: FontWeight.w300,
                                                     ),
                                                   ),
                                                 ],
